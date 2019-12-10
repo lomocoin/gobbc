@@ -1,0 +1,3 @@
+fmt:
+	go fmt ./...
+	cd qa && go fmt 
