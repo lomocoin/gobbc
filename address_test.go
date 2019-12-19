@@ -1,12 +1,9 @@
 package gobbc
 
 import (
-	"bytes"
-	"encoding/binary"
+	"encoding/hex"
 	"fmt"
-	"reflect"
 	"testing"
-	"unsafe"
 )
 
 func TestMakeKeyPair(t *testing.T) {
@@ -47,6 +44,36 @@ func TestGetPubKeyAddress(t *testing.T) {
 		add, err := GetPubKeyAddress(pubk)
 		tw.Nil(err).
 			True(shouldBe == add, "地址不对", shouldBe)
+	}
+
+}
+
+func TestTemplateAddr(t *testing.T) {
+	// TODO 增加测试数据
+	// 正常解析
+	// 错误的长度
+	// 公钥的解析
+	// 。。。
+	tw := TW{T: t}
+	h := "02000102ff1b5b6a4c177953f738ac2eebdcaee40a1131530612cafcd86f509ac7c0b81f01654a017cb2c46cc21452ee2c8d52e70a8570393937264691da9f76be6c6f38a701"
+	b, err := hex.DecodeString(h)
+	tw.Nil(err)
+
+	fmt.Println("expected:2+2+33*2 = 70", len(b))
+	b = b[2:]
+	fmt.Println("mn1(32+1)2(32+1) = 68", len(b))
+	fmt.Println("m-n", b[:2])
+	b = b[2:]
+	fmt.Println("前33", b[:33])
+	fmt.Println("后33", b[33:])
+
+	for _, pub := range []string{
+		"a7386f6cbe769fda91462637393970850ae7528d2cee5214c26cc4b27c014a65",
+		"1fb8c0c79a506fd8fcca12065331110ae4aedceb2eac38f75379174c6a5b1bff",
+	} {
+		k, err := ParsePublicKeyHex(pub)
+		tw.Nil(err)
+		fmt.Println(k)
 	}
 
 }

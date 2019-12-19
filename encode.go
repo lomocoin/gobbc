@@ -52,15 +52,6 @@ var hexDigits = [256]uint8{
 }
 
 func uint256SetHex(t *uint256, hexed string) int {
-	// fmt.Println("before set u256:")
-	// for i := 0; i < 32; i++ {
-	// 	if i%8 == 0 {
-	// 		fmt.Println()
-	// 	}
-	// 	c := hexed[i]
-	// 	fmt.Printf("%d => %d; ", i, c)
-	// }
-
 	for i, j := 0, len(hexed)-1; i < 32; i++ {
 		t[i] = hexDigits[hexed[j]]
 		j--
@@ -79,10 +70,6 @@ func uint256GetHex(data []byte) string {
 		s += fmt.Sprintf("%02x", uint8(x))
 		fmt.Printf("%d => %02x\n", uint8(x), uint8(x))
 	}
-	// for (i = 0; i < sizeof(data->pn); i++)
-	// {
-	//     sprintf(psz + i * 2, "%02x", ((unsigned char *)data->pn)[sizeof(data->pn) - i - 1]);
-	// }
 	return s
 }
 
@@ -109,6 +96,7 @@ func base32Encode5Bytes(md5 []uint8) string {
 	return ret
 }
 
+// Base32Encode copied from c++
 func Base32Encode(md32 []uint8) string {
 	// fmt.Println("base32encode in: ", md32)
 	var crc uint = crc24q(md32, 32)

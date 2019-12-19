@@ -67,6 +67,14 @@ func (tw *TW) IsZero(v interface{}, args ...interface{}) *TW {
 	return tw
 }
 
+// NotZero if flag == false, fatal
+func (tw *TW) NotZero(v interface{}, args ...interface{}) *TW {
+	if reflect.ValueOf(v).IsZero() {
+		tw.assertFailed("[test fatal] is zero value, args: %v, %v", v, args)
+	}
+	return tw
+}
+
 // Equal reflect.DeepEqual
 func (tw *TW) Equal(expected, actual interface{}, args ...interface{}) *TW {
 	if !reflect.DeepEqual(expected, actual) {
@@ -76,6 +84,7 @@ func (tw *TW) Equal(expected, actual interface{}, args ...interface{}) *TW {
 	return tw
 }
 
+// JSONIndent pretty json
 func JSONIndent(v interface{}) string {
 	b, _ := json.MarshalIndent(v, "", "  ")
 	return string(b)

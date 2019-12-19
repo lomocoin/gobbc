@@ -6,11 +6,16 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"golang.org/x/crypto/blake2b"
 	"log"
 	"unsafe"
+
+	"go.dedis.ch/kyber/v3/group/edwards25519"
+	"golang.org/x/crypto/blake2b"
 )
 
+var cv25 edwards25519.Curve
+
+// DecodeRawTransaction hexed tx parse
 func DecodeRawTransaction(txData string, decodeSignData bool) (*Transaction, error) {
 	rtx, err := txDeserialize(txData, decodeSignData)
 	if err != nil {
@@ -75,7 +80,6 @@ func txDeserialize(txData string, decodeSignData bool) (*RawTransaction, error) 
 	if len(errs) != 0 {
 		err = fmt.Errorf("some errors when read binary: %v", errs)
 	}
-	// TODO vin list
 	return tx, err
 }
 
@@ -119,25 +123,61 @@ func (rtx *RawTransaction) EncodeBytes(encodeSignData bool) ([]byte, error) {
 		buf.WriteByte(0) //表示不包含签名数据
 	}
 
-	// TODO write outputs,and signs
-	// fmt.Println("[dbg] buf.Len()", buf.Len())
-
 	var err error
 	if len(errs) != 0 {
 		err = fmt.Errorf("some errors when write binary: %v", errs)
 	}
-
 	return buf.Bytes(), err
 }
 
-// SignWithKey 用私钥签名
+// Txid 计算txid
+func (rtx *RawTransaction) Txid() ([32]byte, error) {
+	msg, err := rtx.EncodeBytes(false)
+	if err != nil {
+		return [32]byte{}, fmt.Errorf("failed to encode tx to sign msg, %v", err)
+	}
+	msg = msg[:len(msg)-1]
+	// fmt.Println("[dbg] encoded tx bytes:", msg)
+	return blake2b.Sum256(msg), nil
+}
+
+// Multisig .
+func (rtx *RawTransaction) Multisig(multisigAddrHex string, privk []byte) error {
+	multisigInfo, err := ParseMultisigTemplateHex(multisigAddrHex)
+	if err != nil {
+		return fmt.Errorf("failed to parse multisig template hex, %v", err)
+	}
+
+	txid, err := rtx.Txid()
+	if err != nil {
+		return fmt.Errorf("failed to calc txid: %v", err)
+	}
+
+	var currentSig []byte
+	if len(rtx.SignBytes[:]) > 0 {
+		tplPartLen := len(multisigInfo.SignTemplatePart())
+		currentSig = make([]byte, len(rtx.SignBytes)-tplPartLen)
+		copy(currentSig, rtx.SignBytes[tplPartLen:])
+	}
+
+	b, err := CryptoMultiSign(multisigInfo.Pubks(), privk, CopyReverse(rtx.HashAnchorBytes[:]), txid[:], currentSig)
+	if err != nil {
+		return fmt.Errorf("failed to multisign, %v", err)
+	}
+
+	// fmt.Println("CryptoMultiSIgn:", hex.EncodeToString(b))
+	rtx.SignBytes = append(multisigInfo.SignTemplatePart(), b...)
+	rtx.SizeSign = uint8(len(rtx.SignBytes))
+	return nil
+}
+
+// SignWithHexedKey 用私钥签名
 func (rtx *RawTransaction) SignWithHexedKey(privkHex string) error {
 	privk, err := ParsePrivkHex(privkHex)
 	if err != nil {
 		return err
 	}
 	// 1.确认私钥解析一致
-	fmt.Println("[dbg] privk(5):", privk[:5])
 	b, err := rtx.EncodeBytes(false)
 	if err != nil {
 		return err
@@ -153,32 +193,4 @@ func (rtx *RawTransaction) SignWithHexedKey(privkHex string) error {
 	// fmt.Printf("[dbg] sig 5...5: %v...%v\n", rtx.SignBytes[:5], rtx.SignBytes[59:])
 	rtx.SizeSign = uint8(len(rtx.SignBytes))
 	return nil
-}
-
-// RawTransaction 实际的序列话数据结构
-// 注意：数据类型不要更改（序列化时对类型有依赖）
-type RawTransaction struct {
-	Version         uint16
-	Typ             uint16 //type > typ
-	Timestamp       uint32
-	LockUntil       uint32
-	HashAnchorBytes [32]byte `json:"-"` // binary data (caller do not care about this field, you just care hex field)
-	SizeIn          uint8    //input 数量
-	Input           []byte   `json:"-"`
-	Prefix          uint8
-	AddressBytes    [32]byte `json:"-"` // binary data (caller do not care about this field, you just care hex field)
-	Amount          int64
-	TxFee           int64
-	SizeOut         uint8
-	VchData         []byte `json:"-"` // binary (caller do not care about this field, you just care hex field)
-	SizeSign        uint8  // binary sign data size
-	SignBytes       []byte `json:"-"` // binary (caller do not care about this field, you just care hex field)
-}
-
-// Transaction .
-type Transaction struct {
-	RawTransaction
-	HashAnchor string // hex string([65]byte)
-	Address    string // hex string ([64 + 1]byte)
-	Sign       string // hex string
 }

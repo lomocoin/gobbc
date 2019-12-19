@@ -40,6 +40,86 @@ func MakeKeyPair() (AddrKeyPair, error) {
 	return pair, nil
 }
 
+// PrivateKeyHex2Seed 解析私钥为实际使用的seed
+func PrivateKeyHex2Seed(hexedPrivk string) ([]byte, error) {
+	b, err := hex.DecodeString(hexedPrivk)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hex decode private key, %v", err)
+	}
+	return reverseBytes(b), nil
+}
+
+// ParsePublicKeyHex 解析私钥为实际使用的seed
+func ParsePublicKeyHex(hexedPubK string) ([]byte, error) {
+	b, err := hex.DecodeString(hexedPubK)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hex decode private key, %v", err)
+	}
+	return reverseBytes(b), nil
+}
+
+// MultisigInfo 多签信息
+type MultisigInfo struct {
+	Hex     string
+	M, N    uint8 //m-n签名(权重)
+	Members []MultisigMember
+}
+
+// MultisigMember .
+type MultisigMember struct {
+	Pub    []byte
+	Weight uint8
+}
+
+// SignTemplatePart 签名时签名的前半部分
+func (mi MultisigInfo) SignTemplatePart() []byte {
+	b, _ := hex.DecodeString(mi.Hex[4:])
+	return b
+}
+
+// Pubks 参与签名的公钥列表
+func (mi MultisigInfo) Pubks() [][]byte {
+	var pubks [][]byte
+	for _, m := range mi.Members {
+		pubks = append(pubks, m.Pub)
+	}
+	return pubks
+}
+
+// ParseMultisigTemplateHex 解析多签地址hex，
+// hex decode
+// 前2byte代表类型，通常是0200 (不确定是0200或者0020)
+// 接下来2byte为M,N
+// 接下来有N个33 (32为公钥1为weight)
+func ParseMultisigTemplateHex(hexData string) (*MultisigInfo, error) {
+	b, err := hex.DecodeString(hexData)
+	if err != nil {
+		return nil, fmt.Errorf("invalid hex, %v", err)
+	}
+
+	// 长度校验
+	l := len(b)
+	if l < 37 || (l-2-2)%33 != 0 {
+		return nil, fmt.Errorf("hex template data 长度似乎异常，不符合 4 + 33n 模式, %v", l)
+	}
+
+	info := MultisigInfo{
+		Hex: hexData,
+		M:   uint8(b[2]),
+		N:   uint8(b[3]),
+	}
+
+	b = b[4:]
+	for ; len(b) > 0; b = b[33:] {
+		b33 := b[:33]
+		info.Members = append(info.Members, MultisigMember{
+			Pub: b33[:32], Weight: uint8(b33[32]),
+		})
+	}
+	return &info, nil
+}
+
+// ParsePrivkHex BBC 私钥解析为ed25519.PrivateKey
 func ParsePrivkHex(privkHex string) (ed25519.PrivateKey, error) {
 	b, err := hex.DecodeString(privkHex)
 	if err != nil {
@@ -52,29 +132,15 @@ func ParsePrivkHex(privkHex string) (ed25519.PrivateKey, error) {
 	return ed25519.NewKeyFromSeed(seed), nil
 }
 
-func GetPubKeyFromAddress(pubk string) (string, error) {
+// Address2pubk addr => public key
+func Address2pubk(pubk string) (string, error) {
 	return "TBD", nil
-}
-
-func GetAddressFromPubKey(pubk string) (string, error) {
-	b := make([]byte, len(pubk))
-	copy(b, pubk)
-	return hex.EncodeToString(b), nil
 }
 
 // GetPubKeyAddress Get Address hex string from public key hex string
 func GetPubKeyAddress(pubk string) (string, error) {
 	var ui uint256
 	uint256SetHex(&ui, pubk)
-	// fmt.Println("after set u256:")
-	// for i := 0; i < 32; i++ {
-	// 	if i%8 == 0 {
-	// 		fmt.Println()
-	// 	}
-	// 	c := ui[i]
-	// 	fmt.Printf("%d => %d; ", i, c)
-	// }
-	// fmt.Println()
 	return "1" + Base32Encode(ui[:]), nil
 }
 

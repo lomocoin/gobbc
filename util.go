@@ -14,6 +14,11 @@ func UntilError(fns ...func() error) error {
 func CopyReverse(bs []byte) []byte {
 	s := make([]byte, len(bs))
 	copy(s, bs)
+	return reverseBytes(s)
+}
+
+// reverseBytes reverse []byte s, and return s
+func reverseBytes(s []byte) []byte {
 	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
 		s[i], s[j] = s[j], s[i]
 	}

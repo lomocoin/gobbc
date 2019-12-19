@@ -16,7 +16,9 @@ func TestMakekeypair(t *testing.T) {
 	tw := gobbc.TW{T: t}
 	const pass = "123"
 
-	killNode, client, minerAddr := bbrpc.TesttoolRunServerAndBeginMint(t)
+	killNode, client, minerAddr := bbrpc.TesttoolRunServerAndBeginMint(t, bbrpc.RunBigBangOptions{
+		NewTmpDir: true, NotPrint2stdout: true,
+	})
 	defer killNode()
 
 	pair, err := gobbc.MakeKeyPair()
