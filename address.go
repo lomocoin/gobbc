@@ -40,6 +40,29 @@ func MakeKeyPair() (AddrKeyPair, error) {
 	return pair, nil
 }
 
+// Seed2string 私钥字符串
+func Seed2string(seed []byte) string {
+	return hex.EncodeToString(CopyReverse(seed))
+}
+
+// Seed2pubk .
+func Seed2pubk(seed []byte) ([]byte, error) {
+	if l := len(seed); l != ed25519.SeedSize {
+		return nil, fmt.Errorf("invalid seed len, %v", l)
+	}
+	privateKey := ed25519.NewKeyFromSeed(seed)
+	return privateKey.Public().(ed25519.PublicKey), nil
+}
+
+// Seed2pubkString .
+func Seed2pubkString(seed []byte) (string, error) {
+	pubk, err := Seed2pubk(seed)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(reverseBytes(pubk)), nil
+}
+
 // PrivateKeyHex2Seed 解析私钥为实际使用的seed
 func PrivateKeyHex2Seed(hexedPrivk string) ([]byte, error) {
 	b, err := hex.DecodeString(hexedPrivk)

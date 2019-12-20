@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"unsafe"
@@ -173,6 +174,9 @@ func (rtx *RawTransaction) Multisig(multisigAddrHex string, privk []byte) error 
 
 // SignWithHexedKey 用私钥签名
 func (rtx *RawTransaction) SignWithHexedKey(privkHex string) error {
+	if len(rtx.SignBytes) > 0 {
+		return errors.New("seems tx already signed")
+	}
 	privk, err := ParsePrivkHex(privkHex)
 	if err != nil {
 		return err

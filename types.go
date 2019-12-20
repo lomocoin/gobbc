@@ -1,5 +1,10 @@
 package gobbc
 
+import (
+	"encoding/hex"
+	"encoding/json"
+)
+
 // RawTransaction 实际的序列话数据结构
 // 注意：数据类型不要更改（序列化时对类型有依赖）
 type RawTransaction struct {
@@ -26,4 +31,19 @@ type Transaction struct {
 	HashAnchor string // hex string([65]byte)
 	Address    string // hex string ([64 + 1]byte)
 	Sign       string // hex string
+}
+
+// MultisigTXData .
+type MultisigTXData struct {
+	TplHex string `json:"tpl_hex,omitempty"` //成员信息,通过rpc validateaddress (多签模版地址) 取到的值的ret.Addressdata.Templatedata.Hex
+	TxHex  string `json:"tx_hex,omitempty"`  //encoded tx data
+}
+
+// ToJSONHex json marshal + hex encode
+func (data *MultisigTXData) ToJSONHex() (string, error) {
+	b, err := json.Marshal(data)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }
