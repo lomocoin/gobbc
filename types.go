@@ -47,3 +47,12 @@ func (data *MultisigTXData) ToJSONHex() (string, error) {
 	}
 	return hex.EncodeToString(b), nil
 }
+
+// FromJSONHex parse jsonHex set value to data
+func (data *MultisigTXData) FromJSONHex(jsonHex string) error {
+	b, err := hex.DecodeString(jsonHex)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, data)
+}
