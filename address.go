@@ -112,8 +112,11 @@ func (mi MultisigInfo) Pubks() [][]byte {
 // ParseMultisigTemplateHex 解析多签地址hex，
 // hex decode
 // 前2byte代表类型，通常是0200 (不确定是0200或者0020)
-// 接下来2byte为M,N
-// 接下来有N个33 (32为公钥1为weight)
+// 接下来1+8 byte为M,N
+// 接下来有N个33 (32为公钥,1为weight)
+// ref to: https://github.com/bigbangcore/BigBang/wiki/%E5%A4%9A%E9%87%8D%E7%AD%BE%E5%90%8D
+// |---2---|---1---|---8---|---33*n---|
+// |  type |    M  |    N  |  keys... |
 func ParseMultisigTemplateHex(hexData string) (*MultisigInfo, error) {
 	b, err := hex.DecodeString(hexData)
 	if err != nil {
@@ -122,23 +125,25 @@ func ParseMultisigTemplateHex(hexData string) (*MultisigInfo, error) {
 
 	// 长度校验
 	l := len(b)
-	if l < 37 || (l-2-2)%33 != 0 {
-		return nil, fmt.Errorf("hex template data 长度似乎异常，不符合 4 + 33n 模式, %v", l)
+	if l < 44 || (l-11)%33 != 0 {
+		return nil, fmt.Errorf("hex template data 长度似乎异常，不符合 2 + 1 + 8 + 33n 模式, %v", l)
 	}
 
 	info := MultisigInfo{
 		Hex: hexData,
 		M:   uint8(b[2]),
-		N:   uint8(b[3]),
 	}
 
-	b = b[4:]
+	count := 0
+	b = b[11:] // 2+1+8
 	for ; len(b) > 0; b = b[33:] {
 		b33 := b[:33]
 		info.Members = append(info.Members, MultisigMember{
 			Pub: b33[:32], Weight: uint8(b33[32]),
 		})
+		count++
 	}
+	info.N = uint8(count)
 	return &info, nil
 }
 
