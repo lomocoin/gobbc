@@ -21,7 +21,7 @@ type RawTransaction struct {
 	TxFee           int64
 	SizeOut         uint8
 	VchData         []byte `json:"-"` // binary (caller do not care about this field, you just care hex field)
-	SizeSign        int    // binary sign data size, ref: https://github.com/bigbangcore/BigBang/wiki/IO-Stream#stdvector-stdmap-stdstring
+	SizeSign        uint64 // binary sign data size, ref: https://github.com/bigbangcore/BigBang/wiki/IO-Stream#stdvector-stdmap-stdstring
 	SignBytes       []byte `json:"-"` // binary (caller do not care about this field, you just care hex field)
 }
 

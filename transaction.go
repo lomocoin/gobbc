@@ -74,15 +74,15 @@ func txDeserialize(txData string, decodeSignData bool) (*RawTransaction, error) 
 		}
 		switch sz := sizeFlag; {
 		case sz < 0xfd:
-			tx.SizeSign = int(sz)
+			tx.SizeSign = uint64(sz)
 		case sz == 0xfd:
 			var size uint16
 			read(&size)
-			tx.SizeSign = int(size)
+			tx.SizeSign = uint64(size)
 		case sz == 0xfe:
 			var size uint32
 			read(&size)
-			tx.SizeSign = int(size)
+			tx.SizeSign = uint64(size)
 		case sz == 0xff:
 			read(&tx.SizeSign)
 		default:
@@ -198,7 +198,7 @@ func (rtx *RawTransaction) Multisig(multisigAddrHex string, privk []byte) error 
 
 	// fmt.Println("[dbg]CryptoMultiSIgn:", hex.EncodeToString(b))
 	rtx.SignBytes = append(multisigInfo.SignTemplatePart(), b...)
-	rtx.SizeSign = len(rtx.SignBytes)
+	rtx.SizeSign = uint64(len(rtx.SignBytes))
 	return nil
 }
 
@@ -225,6 +225,6 @@ func (rtx *RawTransaction) SignWithHexedKey(privkHex string) error {
 	rtx.SignBytes = ed25519.Sign(privk, sum[:])
 	// 4.确认签名一致
 	// fmt.Printf("[dbg] sig 5...5: %v...%v\n", rtx.SignBytes[:5], rtx.SignBytes[59:])
-	rtx.SizeSign = len(rtx.SignBytes)
+	rtx.SizeSign = uint64(len(rtx.SignBytes))
 	return nil
 }
