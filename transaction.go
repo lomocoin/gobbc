@@ -10,11 +10,8 @@ import (
 	"log"
 	"unsafe"
 
-	"go.dedis.ch/kyber/v3/group/edwards25519"
 	"golang.org/x/crypto/blake2b"
 )
-
-var cv25 edwards25519.Curve
 
 // DecodeRawTransaction hexed tx parse
 func DecodeRawTransaction(txData string, decodeSignData bool) (*Transaction, error) {
@@ -71,7 +68,26 @@ func txDeserialize(txData string, decodeSignData bool) (*RawTransaction, error) 
 	copy(tx.VchData, r.Next(size)) //考虑逻辑是什么？。。。是不是直接表示字节数，而不是out的笔数
 
 	if decodeSignData {
-		read(&tx.SizeSign)
+		sizeFlag, err := r.ReadByte()
+		if err != nil {
+			return nil, fmt.Errorf("unable to read sign size flag: %v", err)
+		}
+		switch sz := sizeFlag; {
+		case sz < 0xfd:
+			tx.SizeSign = int(sz)
+		case sz == 0xfd:
+			var size uint16
+			read(&size)
+			tx.SizeSign = int(size)
+		case sz == 0xfe:
+			var size uint32
+			read(&size)
+			tx.SizeSign = int(size)
+		case sz == 0xff:
+			read(&tx.SizeSign)
+		default:
+			return nil, fmt.Errorf("unexpected sig size %d", sz)
+		}
 
 		size = int(tx.SizeSign)
 		tx.SignBytes = make([]byte, size)
@@ -118,7 +134,21 @@ func (rtx *RawTransaction) EncodeBytes(encodeSignData bool) ([]byte, error) {
 	write(rtx.SizeOut)
 	buf.Write(rtx.VchData)
 	if encodeSignData {
-		write(rtx.SizeSign)
+		switch sz := rtx.SizeSign; {
+		case sz < 0xFD:
+			write(uint8(rtx.SizeSign))
+		case sz <= 0xffff:
+			buf.WriteByte(0xfd)
+			write(uint16(rtx.SizeSign))
+		case sz <= 0xFFFFFFFF:
+			buf.WriteByte(0xfe)
+			write(uint32(rtx.SizeSign))
+		case sz > 0xFFFFFFFF:
+			buf.WriteByte(0xff)
+			write(rtx.SizeSign)
+		default:
+			errs = append(errs, fmt.Errorf("should not here, encode transaction, unexpected sign size: %d", rtx.SizeSign))
+		}
 		buf.Write(rtx.SignBytes)
 	} else {
 		buf.WriteByte(0) //表示不包含签名数据
@@ -161,14 +191,14 @@ func (rtx *RawTransaction) Multisig(multisigAddrHex string, privk []byte) error 
 		copy(currentSig, rtx.SignBytes[tplPartLen:])
 	}
 
-	b, err := CryptoMultiSign(multisigInfo.Pubks(), privk, CopyReverse(rtx.HashAnchorBytes[:]), txid[:], currentSig)
+	b, err := CryptoMultiSign(multisigInfo.Pubks(), privk, txid[:], currentSig)
 	if err != nil {
 		return fmt.Errorf("failed to multisign, %v", err)
 	}
 
-	// fmt.Println("CryptoMultiSIgn:", hex.EncodeToString(b))
+	// fmt.Println("[dbg]CryptoMultiSIgn:", hex.EncodeToString(b))
 	rtx.SignBytes = append(multisigInfo.SignTemplatePart(), b...)
-	rtx.SizeSign = uint8(len(rtx.SignBytes))
+	rtx.SizeSign = len(rtx.SignBytes)
 	return nil
 }
 
@@ -195,6 +225,6 @@ func (rtx *RawTransaction) SignWithHexedKey(privkHex string) error {
 	rtx.SignBytes = ed25519.Sign(privk, sum[:])
 	// 4.确认签名一致
 	// fmt.Printf("[dbg] sig 5...5: %v...%v\n", rtx.SignBytes[:5], rtx.SignBytes[59:])
-	rtx.SizeSign = uint8(len(rtx.SignBytes))
+	rtx.SizeSign = len(rtx.SignBytes)
 	return nil
 }

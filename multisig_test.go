@@ -10,27 +10,6 @@ type key struct {
 	privk, pubk []byte
 }
 
-//该测试为一个"bug"/特性展示，作为代码参考，非代码测试用例
-func TestEd25519_scalarMarshal(t *testing.T) {
-	tw := TW{T: t}
-
-	//对于下面的2组scalar,表现值一致，但mulBase之后值不同
-	for _, scBytes := range [][]byte{
-		{187, 54, 105, 185, 138, 165, 51, 76, 20, 152, 17, 219, 12, 149, 225, 165, 223, 179, 171, 111, 206, 240, 140, 43, 124, 150, 86, 223, 143, 17, 99, 164},
-		{121, 239, 206, 23, 131, 198, 123, 219, 180, 119, 101, 125, 90, 210, 43, 213, 222, 179, 171, 111, 206, 240, 140, 43, 124, 150, 86, 223, 143, 17, 99, 4},
-	} {
-		sc := cv25.Scalar()
-		err := sc.UnmarshalBinary(scBytes)
-		tw.Nil(err)
-
-		fmt.Println(sc)
-		fmt.Println(sc.MarshalBinary())
-
-		riPoint := cv25.Point().Base().Mul(sc, nil)
-		fmt.Println(riPoint.MarshalBinary())
-	}
-}
-
 func TestMultidebug(t *testing.T) {
 	t.Skip("调试用测试用例，不作为测试执行")
 
@@ -55,7 +34,7 @@ func TestMultidebug(t *testing.T) {
 	nKeys := 3
 	nPart := 3
 
-	anchorBytes := []byte{60, 181, 171, 152, 229, 245, 226, 165, 13, 111, 203, 177, 183, 221, 194, 108, 217, 181, 39, 91, 121, 181, 249, 156, 129, 217, 116, 113, 176, 42, 227, 168}
+	// anchorBytes := []byte{60, 181, 171, 152, 229, 245, 226, 165, 13, 111, 203, 177, 183, 221, 194, 108, 217, 181, 39, 91, 121, 181, 249, 156, 129, 217, 116, 113, 176, 42, 227, 168}
 	msgBytes := []byte{170, 180, 100, 146, 8, 197, 214, 27, 116, 254, 107, 193, 246, 68, 111, 12, 226, 18, 17, 252, 237, 55, 52, 189, 34, 158, 18, 81, 221, 222, 229, 52}
 
 	var pubks, privks [][]byte
@@ -73,7 +52,7 @@ func TestMultidebug(t *testing.T) {
 	var sig []byte
 	for i := 0; i < nPart; i++ {
 		privk := privks[i]
-		sig, err = CryptoMultiSign(pubks, privk, anchorBytes, msgBytes, sig)
+		sig, err = CryptoMultiSign(pubks, privk, msgBytes, sig)
 		tw.Nil(err)
 		fmt.Println("si", i, sig)
 	}
