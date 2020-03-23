@@ -21,6 +21,11 @@ type AddrKeyPair struct {
 	Addr  string
 }
 
+// CopyReverseThenEncodeHex 复制[]byte,反转后hex.EncodeToString
+func CopyReverseThenEncodeHex(bs []byte) string {
+	return hex.EncodeToString(CopyReverse(bs))
+}
+
 // MakeKeyPair .
 func MakeKeyPair() (AddrKeyPair, error) {
 	var pair AddrKeyPair
@@ -29,8 +34,8 @@ func MakeKeyPair() (AddrKeyPair, error) {
 		return pair, err
 	}
 
-	pair.Pubk = hex.EncodeToString(CopyReverse(pubk))
-	pair.Privk = hex.EncodeToString(CopyReverse(privk.Seed()))
+	pair.Pubk = CopyReverseThenEncodeHex(pubk)
+	pair.Privk = CopyReverseThenEncodeHex(privk.Seed())
 
 	addr, err := GetPubKeyAddress(pair.Pubk)
 	if err != nil {
@@ -42,7 +47,7 @@ func MakeKeyPair() (AddrKeyPair, error) {
 
 // Seed2string 私钥字符串
 func Seed2string(seed []byte) string {
-	return hex.EncodeToString(CopyReverse(seed))
+	return CopyReverseThenEncodeHex(seed)
 }
 
 // Seed2pubk .
@@ -161,18 +166,13 @@ func ParsePrivkHex(privkHex string) (ed25519.PrivateKey, error) {
 }
 
 // Address2pubk addr => public key
-func Address2pubk(pubk string) (string, error) {
-	return "TBD", nil
-}
+// func Address2pubk(pubk string) (string, error) {
+// 	return "TBD", nil
+// }
 
 // GetPubKeyAddress Get Address hex string from public key hex string
 func GetPubKeyAddress(pubk string) (string, error) {
 	var ui uint256
 	uint256SetHex(&ui, pubk)
 	return "1" + Base32Encode(ui[:]), nil
-}
-
-func IsValidAddress(addr string) bool {
-	// TODO
-	return false
 }
