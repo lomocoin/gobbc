@@ -181,7 +181,17 @@ func (rtx *RawTransaction) Txid() ([32]byte, error) {
 //
 // 通常，在from为模版地址时需要传入from的模版数据，可以通过rpc validateaddress 获取(data.addressdata.templatedata.hex)
 // 当to地址为vote类型模版地址时需要传入to地址模版数据
-// 特别的，只有1种情况需要传入2个模版地址：多签地址向投票模版转账时需要传入：投票模版数据,多签模版数据
+// 特别的，只有1种情况需要传入2个模版地址：delegate类型模版的owner为多签地址，从该地址转出时需要传入：delegate模版数据,多签模版数据
+// （基于上面一种情况，如果转出地址为vote template可能还需要提供vote template data, 一共3个😂，这个未经测试、验证）
+// 
+// 下面列出常见的场景：
+// 一般公钥地址转出(到非vote template)->(不需要模版数据)
+// 一般公钥地址投票时->投票模版数据
+// 一般公钥投票赎回时->投票模版数据
+// 多签地址签名（转账到一般地址)->多签模版数据
+// 从dpos委托模版地址转出->委托模版数据
+// 从dpos委托模版(owner为多签)地址转出->委托模版数据+多签模版数据
+// 从pow挖矿模版地址转出->pow挖矿模版地址
 //
 // 注意：签名逻辑不对模版数据进行严格合理的校验，因为离线环境下无法感知模版数据的有效性，调用方需自行确保参数正确
 func (rtx *RawTransaction) SignWithPrivateKey(templateDataList, privkHex string) error {
