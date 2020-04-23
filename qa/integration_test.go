@@ -2,6 +2,7 @@ package qa
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/dabankio/bbrpc"
@@ -17,64 +18,72 @@ func TestMakekeypair(t *testing.T) {
 	const pass = "123"
 
 	killNode, client, minerAddr := bbrpc.TesttoolRunServerAndBeginMint(t, bbrpc.RunBigBangOptions{
-		NewTmpDir: true, NotPrint2stdout: true,
+		NewTmpDir: true, NotPrint2stdout: false, KeepTmpDirInKill: true,
 	})
 	defer killNode()
 
 	pair, err := gobbc.MakeKeyPair()
 	tw.Nil(err)
 
-	{ //验证生成的私钥与对应的公钥、地址正确
+	t.Run("可以正常导入私钥，根据公钥转换的地址一致", func(_t *testing.T) {
 		pubkP, err := client.Importprivkey(pair.Privk, pass)
 		tw.Nil(err).Equal(pair.Pubk, *pubkP)
 
 		addr, err := client.Getpubkeyaddress(pair.Pubk, nil)
 		tw.Nil(err).Equal(pair.Addr, *addr)
+	})
+
+	//测试签名
+	prepareAmount := 30.0
+	outAmount := 10.0
+	{ //准备资金给地址
+		tw.Continue(false).Nil(bbrpc.Wait4balanceReach(minerAddr, 100, client))
+		_, err = client.Sendfrom(bbrpc.CmdSendfrom{
+			From:   minerAddr,
+			To:     pair.Addr,
+			Amount: prepareAmount,
+		})
+		tw.Nil(err)
+		tw.Nil(bbrpc.Wait4balanceReach(pair.Addr, prepareAmount, client))
 	}
 
-	{ //测试签名
-		prepareAmount := 30.0
-		outAmount := 10.0
-		{ //准备资金给地址
-			tw.Continue(false).Nil(bbrpc.Wait4balanceReach(minerAddr, 100, client))
-			_, err = client.Sendfrom(bbrpc.CmdSendfrom{
-				From:   minerAddr,
-				To:     pair.Addr,
-				Amount: prepareAmount,
-			})
-			tw.Nil(err)
-			tw.Nil(bbrpc.Wait4balanceReach(pair.Addr, prepareAmount, client))
-		}
+	t.Run("可以正常签名，签名结果与用rpc签名的一致,签名结果可以正常广播", func(_t *testing.T) {
+		txdata, err := client.Createtransaction(bbrpc.CmdCreatetransaction{
+			From:   pair.Addr,
+			To:     minerAddr,
+			Amount: outAmount,
+		})
+		tw.Nil(err).True(txdata != nil)
 
-		{ //创建交易，然后离线签名、广播
-			txdata, err := client.Createtransaction(bbrpc.CmdCreatetransaction{
-				From:   pair.Addr,
-				To:     minerAddr,
-				Amount: outAmount,
-			})
-			tw.Nil(err).True(txdata != nil)
+		tx, err := gobbc.DecodeRawTransaction(*txdata, false)
+		tw.Nil(err)
+		tx.Version = math.MaxUint16
+		// _ = math.MaxUint16
+		tw.Nil(tx.SignWithHexedKey(pair.Privk))
 
-			tx, err := gobbc.DecodeRawTransaction(*txdata, false)
-			tw.Nil(err)
-			tw.Nil(tx.SignWithHexedKey(pair.Privk))
+		signedTx, err := tx.Encode(true)
+		tw.Nil(err)
 
-			signedTx, err := tx.Encode(true)
-			tw.Nil(err)
+		_, err = client.Unlockkey(pair.Pubk, pass, nil)
+		tw.Nil(err)
+		signWithRPC, err := client.Signtransaction(*txdata)
+		tw.Nil(err).
+			True(signWithRPC.Completed).
+			Equal(signedTx, signWithRPC.Hex)
 
-			_, err = client.Sendtransaction(signedTx)
-			tw.Nil(err)
-		}
+		_, err = client.Sendtransaction(signedTx)
+		tw.Nil(err)
+	})
 
-		{ //验证余额
-			tw.Nil(bbrpc.Wait4nBlocks(1, client))
+	{ //验证余额
+		tw.Nil(bbrpc.Wait4nBlocks(1, client))
 
-			bal, err := client.Getbalance(nil, &pair.Addr)
-			tw.Nil(err).
-				True(len(bal) == 1).
-				Continue(true).
-				True(bal[0].Avail < prepareAmount-outAmount, "余额不正常")
-			fmt.Printf("bal: %#v\n", bal)
-		}
+		bal, err := client.Getbalance(nil, &pair.Addr)
+		tw.Nil(err).
+			True(len(bal) == 1).
+			Continue(true).
+			True(bal[0].Avail < prepareAmount-outAmount, "余额不正常")
+		fmt.Printf("bal: %#v\n", bal)
 	}
 
 }

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"unsafe"
 
 	"golang.org/x/crypto/blake2b"
@@ -37,9 +38,9 @@ func txDeserialize(txData string, decodeSignData bool) (*RawTransaction, error) 
 	var errs []error
 
 	tx := new(RawTransaction)
-	r := bytes.NewBuffer(b)
+	buffer := bytes.NewBuffer(b)
 	read := func(v interface{}) {
-		if e := binary.Read(r, binary.LittleEndian, v); e != nil {
+		if e := binary.Read(buffer, binary.LittleEndian, v); e != nil {
 			log.Printf("[ERR]解析tx数据时无法读取到字段: %v(%T)\n", v, v)
 			errs = append(errs, e)
 		}
@@ -50,25 +51,25 @@ func txDeserialize(txData string, decodeSignData bool) (*RawTransaction, error) 
 	read(&tx.Typ)
 	read(&tx.Timestamp)
 	read(&tx.LockUntil)
-	copy(tx.HashAnchorBytes[:], r.Next(int(unsafe.Sizeof(tx.HashAnchorBytes))))
+	copy(tx.HashAnchorBytes[:], buffer.Next(int(unsafe.Sizeof(tx.HashAnchorBytes))))
 	read(&tx.SizeIn)
 
 	size = 33 * int(tx.SizeIn)
 	tx.Input = make([]byte, size)
-	copy(tx.Input, r.Next(size))
+	copy(tx.Input, buffer.Next(size))
 
 	read(&tx.Prefix)
-	copy(tx.AddressBytes[:], r.Next(int(unsafe.Sizeof(tx.AddressBytes))))
+	copy(tx.AddressBytes[:], buffer.Next(int(unsafe.Sizeof(tx.AddressBytes))))
 	read(&tx.Amount)
 	read(&tx.TxFee)
 	read(&tx.SizeOut)
 
 	size = int(tx.SizeOut)
 	tx.VchData = make([]byte, size)
-	copy(tx.VchData, r.Next(size)) //考虑逻辑是什么？。。。是不是直接表示字节数，而不是out的笔数
+	copy(tx.VchData, buffer.Next(size)) //考虑逻辑是什么？。。。是不是直接表示字节数，而不是out的笔数
 
 	if decodeSignData {
-		sizeFlag, err := r.ReadByte()
+		sizeFlag, err := buffer.ReadByte()
 		if err != nil {
 			return nil, fmt.Errorf("unable to read sign size flag: %v", err)
 		}
@@ -91,7 +92,7 @@ func txDeserialize(txData string, decodeSignData bool) (*RawTransaction, error) 
 
 		size = int(tx.SizeSign)
 		tx.SignBytes = make([]byte, size)
-		copy(tx.SignBytes, r.Next(size))
+		copy(tx.SignBytes, buffer.Next(size))
 	}
 
 	if len(errs) != 0 {
@@ -174,57 +175,93 @@ func (rtx *RawTransaction) Txid() ([32]byte, error) {
 
 // Multisig .
 func (rtx *RawTransaction) Multisig(multisigAddrHex string, privk []byte) error {
-	multisigInfo, err := ParseMultisigTemplateHex(multisigAddrHex)
-	if err != nil {
-		return fmt.Errorf("failed to parse multisig template hex, %v", err)
-	}
-
-	txid, err := rtx.Txid()
-	if err != nil {
-		return fmt.Errorf("failed to calc txid: %v", err)
-	}
-
-	var currentSig []byte
-	if len(rtx.SignBytes[:]) > 0 {
-		tplPartLen := len(multisigInfo.SignTemplatePart())
-		currentSig = make([]byte, len(rtx.SignBytes)-tplPartLen)
-		copy(currentSig, rtx.SignBytes[tplPartLen:])
-	}
-
-	b, err := CryptoMultiSign(multisigInfo.Pubks(), privk, txid[:], currentSig)
-	if err != nil {
-		return fmt.Errorf("failed to multisign, %v", err)
-	}
-
-	// fmt.Println("[dbg]CryptoMultiSIgn:", hex.EncodeToString(b))
-	rtx.SignBytes = append(multisigInfo.SignTemplatePart(), b...)
-	rtx.SizeSign = uint64(len(rtx.SignBytes))
-	return nil
+	return fmt.Errorf("该函数已弃用，请使用 SignWithPrivateKey")
 }
 
 // SignWithHexedKey 用私钥签名
 func (rtx *RawTransaction) SignWithHexedKey(privkHex string) error {
-	if len(rtx.SignBytes) > 0 {
+	return fmt.Errorf("该函数已弃用，请使用 SignWithPrivateKey")
+}
+
+// SignWithPrivateKey 用私钥签名
+// templateDataList: 使用[,]分隔的模版数据列表，
+// - 对于不需要模版数据的交易传入空字符串即可，
+// - 如果传入了模版数据签名后会将模版数据按照顺序放在签名前面，
+// - 如果传入的模版数据检测到多重签名则在签名时使用多重签名机制
+//
+// 通常，在from为模版地址时需要传入from的模版数据，可以通过rpc validateaddress 获取(data.addressdata.templatedata.hex)
+// 当to地址为vote类型模版地址时需要传入to地址模版数据
+// 特别的，只有1种情况需要传入2个模版地址：多签地址向投票模版转账时需要传入：投票模版数据,多签模版数据
+//
+// 注意：签名逻辑不对模版数据进行严格合理的校验，因为离线环境下无法感知模版数据的有效性，调用方需自行确保参数正确
+func (rtx *RawTransaction) SignWithPrivateKey(templateDataList, privkHex string) error {
+	var rawTemplateBytes []byte //移除每个模版的前2个byte（类型说明），并join
+	var multisigTemplateData string
+
+	for _, tpl := range strings.Split(templateDataList, TemplateDataSpliter) {
+		if len(tpl) == 0 {
+			continue
+		}
+		_b, err := hex.DecodeString(tpl)
+		if err != nil {
+			return fmt.Errorf("unable to decode template data: %v", err)
+		}
+		rawTemplateBytes = append(rawTemplateBytes, _b[2:]...) //前2位为模版类型
+		if GetTemplateType(tpl) == TemplateTypeMultisig {
+			multisigTemplateData = tpl
+		}
+	}
+
+	if multisigTemplateData == "" && len(rtx.SignBytes) > 0 { //非多签确已经有签名数据了
 		return errors.New("seems tx already signed")
 	}
 	privk, err := ParsePrivkHex(privkHex)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to parse private key from hex data")
 	}
-	// 1.确认私钥解析一致
-	b, err := rtx.EncodeBytes(false)
+	txid, err := rtx.Txid()
 	if err != nil {
-		return err
+		return fmt.Errorf("calculate txid failed, %v", err)
 	}
-	b = b[:len(b)-1] //TODO 暂时先这么处理，丢弃最后一位，最后一位表示签名长度
-	// 2.确认序列化一致
-	// fmt.Printf("[dbg] tx encodeBytes(len:%d) 5...18: %v...%v\n", len(b), b[:5], b[len(b)-18:])
-	sum := blake2b.Sum256(b)
-	// 3.确认hash一致
-	// fmt.Printf("[dbg] blake2b: %v\n", sum[:])
-	rtx.SignBytes = ed25519.Sign(privk, sum[:])
-	// 4.确认签名一致
-	// fmt.Printf("[dbg] sig 5...5: %v...%v\n", rtx.SignBytes[:5], rtx.SignBytes[59:])
+
+	if multisigTemplateData == "" { //单签
+		sigBytes := ed25519.Sign(privk, txid[:])
+		if len(rawTemplateBytes) > 0 {
+			rtx.SignBytes = append(rawTemplateBytes, sigBytes...)
+		} else {
+			rtx.SignBytes = sigBytes
+		}
+		rtx.SizeSign = uint64(len(rtx.SignBytes))
+		return nil
+	}
+
+	// 对于多重签名，首次签名时签名数据应该为空
+	// 非首次签名时，应包含模版数据和已有签名数据，模版数据应该以传入的为准并且和已有的签名模版数据一致
+	// 每个私钥签名时，重新拼装签名数据
+	var sigPart []byte
+	_ls, _lt := len(rtx.SignBytes), len(rawTemplateBytes)
+	if _ls > 0 { //已有签名数据
+		// 首先检查签名数据中的模版数据与传入的模版数据一致
+		if _ls < _lt {
+			return fmt.Errorf("多签数据检查异常，现有签名长度(%d)小于传入的模版长度(%d)", _ls, _lt)
+		}
+		if !bytes.Equal(rawTemplateBytes, rtx.SignBytes[:_lt]) {
+			return fmt.Errorf("多签数据检查异常，现有签名模版数据与传入的不一致")
+		}
+		sigPart = make([]byte, _ls-_lt)
+		copy(sigPart, rtx.SignBytes[_lt:])
+	}
+	// 含多签的签名结构: | 模版数据 | 成员签名 ｜
+
+	multisigInfo, err := ParseMultisigTemplateHex(multisigTemplateData)
+	if err != nil {
+		return fmt.Errorf("failed to parse multisig template data, %v", err)
+	}
+	sig, err := CryptoMultiSign(multisigInfo.Pubks(), privk, txid[:], sigPart)
+	if err != nil {
+		return fmt.Errorf("CryptoMultiSign error, %v", err)
+	}
+	rtx.SignBytes = append(rawTemplateBytes, sig...)
 	rtx.SizeSign = uint64(len(rtx.SignBytes))
 	return nil
 }

@@ -1,5 +1,10 @@
 package gobbc
 
+import (
+	"encoding/binary"
+	"encoding/hex"
+)
+
 // UntilError execute all func until error returned
 func UntilError(fns ...func() error) error {
 	for _, fn := range fns {
@@ -23,4 +28,19 @@ func reverseBytes(s []byte) []byte {
 		s[i], s[j] = s[j], s[i]
 	}
 	return s
+}
+
+// CopyReverseThenEncodeHex 复制[]byte,反转后hex.EncodeToString
+func CopyReverseThenEncodeHex(bs []byte) string {
+	return hex.EncodeToString(CopyReverse(bs))
+}
+
+// GetTemplateType 如果解析失败则返回TemplateTypeMin(0)
+func GetTemplateType(templateData string) TemplateType {
+	b, err := hex.DecodeString(templateData[:4])
+	if err != nil {
+		return TemplateTypeMin
+	}
+	v := binary.LittleEndian.Uint16(b)
+	return TemplateType(v)
 }
