@@ -33,14 +33,14 @@ type Transaction struct {
 	Sign       string // hex string
 }
 
-// MultisigTXData .
-type MultisigTXData struct {
+// TXData 包含了原始交易数据和需要的模版数据，模版数据使用,(英文逗号)分隔
+type TXData struct {
 	TplHex string `json:"tpl_hex,omitempty"` //成员信息,通过rpc validateaddress (多签模版地址) 取到的值的ret.Addressdata.Templatedata.Hex
 	TxHex  string `json:"tx_hex,omitempty"`  //encoded tx data
 }
 
 // ToJSONHex json marshal + hex encode
-func (data *MultisigTXData) ToJSONHex() (string, error) {
+func (data *TXData) ToJSONHex() (string, error) {
 	b, err := json.Marshal(data)
 	if err != nil {
 		return "", err
@@ -49,7 +49,7 @@ func (data *MultisigTXData) ToJSONHex() (string, error) {
 }
 
 // FromJSONHex parse jsonHex set value to data
-func (data *MultisigTXData) FromJSONHex(jsonHex string) error {
+func (data *TXData) FromJSONHex(jsonHex string) error {
 	b, err := hex.DecodeString(jsonHex)
 	if err != nil {
 		return err

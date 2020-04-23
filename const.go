@@ -19,3 +19,26 @@ const (
 
 // TemplateDataSpliter 使用,分隔多个template data
 const TemplateDataSpliter = ","
+
+func (typ TemplateType) String() string {
+	switch typ {
+	case TemplateTypeWeighted:
+		return "weighted"
+	case TemplateTypeMultisig:
+		return "multisig"
+	case TemplateTypeFork:
+		return "fork"
+	case TemplateTypeProof:
+		return "proof"
+	case TemplateTypeDelegate:
+		return "delegate"
+	case TemplateTypeExchange:
+		return "exchange"
+	case TemplateTypeVote:
+		return "vote"
+	case TemplateTypePayment:
+		return "payment"
+	default:
+		return "unknown"
+	}
+}
