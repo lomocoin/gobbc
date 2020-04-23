@@ -1,3 +1,5 @@
+github.com/dabankio/bbrpc v1.1.1-beta.3 h1:Tx0qJQ2XCw6P7D/nkBvKaGrxMOUC4EvFy3wB/SdAh/M=
+github.com/dabankio/bbrpc v1.1.1-beta.3/go.mod h1:rvHjZ+0o4Hi48sJnrTa7adbGAeLufvgokC0yHtvjy3A=
 github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/google/uuid v1.1.1 h1:Gkbcsh/GbpXz7lPftLA3P6TYMwjCLYm83jiFQZF/3gY=
