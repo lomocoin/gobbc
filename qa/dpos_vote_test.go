@@ -46,7 +46,7 @@ func TestDposVote2myself(t *testing.T) {
 	rawtx, err := gobbc.DecodeRawTransaction(*tx, true)
 	r.NoError(err)
 	rawtx.Version = math.MaxUint16
-	err = rawtx.SignWithHexedKey(miner.Privk)
+	err = rawtx.SignWithPrivateKey("", miner.Privk)
 	r.NoError(err)
 	signedTX, err := rawtx.Encode(true)
 	r.NoError(err)
@@ -82,7 +82,7 @@ func TestDposVote2tpl(t *testing.T) {
 	r.NoError(err)
 	fmt.Println("create tx", *tx)
 	rawtx.Version = math.MaxUint16
-	err = rawtx.SignWithHexedKey(owner.Privk)
+	err = rawtx.SignWithPrivateKey("", owner.Privk)
 	r.NoError(err)
 	signedTX, err := rawtx.Encode(true)
 	r.NoError(err)
@@ -120,7 +120,7 @@ func TestDposVoteRedeem(t *testing.T) {
 	rawtx, err := gobbc.DecodeRawTransaction(*tx, true)
 	r.NoError(err)
 	rawtx.Version = math.MaxUint16
-	err = rawtx.SignWithHexedKey(owner.Privk)
+	err = rawtx.SignWithPrivateKey("", owner.Privk)
 	r.NoError(err)
 	signedTX, err := rawtx.Encode(true)
 	r.NoError(err)
@@ -155,7 +155,7 @@ func TestSendfrom(t *testing.T) {
 	r.NoError(err)
 	fmt.Println("tx.version:", rawtx.Version)
 	rawtx.Version = math.MaxUint16
-	err = rawtx.SignWithHexedKey(owner.Privk)
+	err = rawtx.SignWithPrivateKey("", owner.Privk)
 	r.NoError(err)
 	signedTX, err := rawtx.Encode(true)
 	r.NoError(err)

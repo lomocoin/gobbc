@@ -104,7 +104,7 @@ func TestTransactionDecodeEncode(t *testing.T) {
 		tx, err := DecodeRawTransaction(createdTxHexData1, false)
 		tw.Continue(false).Nil(err)
 
-		err = tx.SignWithHexedKey(privkHex)
+		err = tx.SignWithPrivateKey("", privkHex)
 		tw.Continue(false).Nil(err)
 
 		data, err := tx.Encode(true)

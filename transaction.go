@@ -173,16 +173,6 @@ func (rtx *RawTransaction) Txid() ([32]byte, error) {
 	return blake2b.Sum256(msg), nil
 }
 
-// Multisig .
-func (rtx *RawTransaction) Multisig(multisigAddrHex string, privk []byte) error {
-	return fmt.Errorf("该函数已弃用，请使用 SignWithPrivateKey")
-}
-
-// SignWithHexedKey 用私钥签名
-func (rtx *RawTransaction) SignWithHexedKey(privkHex string) error {
-	return fmt.Errorf("该函数已弃用，请使用 SignWithPrivateKey")
-}
-
 // SignWithPrivateKey 用私钥签名
 // templateDataList: 使用[,]分隔的模版数据列表，
 // - 对于不需要模版数据的交易传入空字符串即可，

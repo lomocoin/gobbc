@@ -105,17 +105,12 @@ func TestMultisigMN(t *testing.T) {
 				//decode
 				tx, err := gobbc.DecodeRawTransaction(*rawtx, false)
 				tw.Nil(err)
-				getK := func(s string) []byte {
-					b, e := gobbc.ParsePublicKeyHex(s)
-					tw.Nil(e)
-					return b
-				}
 				//sign 1
 				for i := 0; i < mnt.m; i++ {
 					beforeSdkSign, err := tx.Encode(true)
 					tw.Nil(err)
 
-					tw.Nil(tx.Multisig(multisigAddrHex, getK(addrs[i].Privk)))
+					tw.Nil(tx.SignWithPrivateKey(multisigAddrHex, addrs[i].Privk))
 
 					_, err = client.Importprivkey(addrs[i].Privk, _pass)
 					tw.Nil(err)
@@ -247,12 +242,7 @@ func Test_DevMultisig_1of2(t *testing.T) {
 				// hb, err := tx.Encode(false)
 				// fmt.Println("tx encode tx:", hb)
 				// tw.Nil(err).Equal(sdkSignResult, hb, "应该正确编码tx")
-				getK := func(s string) []byte {
-					b, e := gobbc.ParsePublicKeyHex(s)
-					tw.Nil(e)
-					return b
-				}
-				tw.Nil(tx.Multisig(multisigAddrHex, getK(a.Privk)))
+				tw.Nil(tx.SignWithPrivateKey(multisigAddrHex, a.Privk))
 
 				sdkSignResult, err = tx.Encode(true)
 				tw.Nil(err)
@@ -373,14 +363,9 @@ func TestMultisigOnlyTemplate(t *testing.T) {
 			// fmt.Println("tx encode tx:", hb)
 			tw.Nil(err).
 				Equal(*rawtx, hb)
-			getK := func(s string) []byte {
-				b, e := gobbc.ParsePublicKeyHex(s)
-				tw.Nil(e)
-				return b
-			}
 			//sign 1
-			tw.Nil(tx.Multisig(multisigAddrHex, getK(a1.Privkey)))
-			tw.Nil(tx.Multisig(multisigAddrHex, getK(a0.Privkey)))
+			tw.Nil(tx.SignWithPrivateKey(multisigAddrHex, a1.Privkey))
+			tw.Nil(tx.SignWithPrivateKey(multisigAddrHex, a0.Privkey))
 
 			sdkSignResult, err = tx.Encode(true)
 			tw.Nil(err)

@@ -59,7 +59,7 @@ func TestMakekeypair(t *testing.T) {
 		tw.Nil(err)
 		tx.Version = math.MaxUint16
 		// _ = math.MaxUint16
-		tw.Nil(tx.SignWithHexedKey(pair.Privk))
+		tw.Nil(tx.SignWithPrivateKey("", pair.Privk))
 
 		signedTx, err := tx.Encode(true)
 		tw.Nil(err)
