@@ -2,7 +2,6 @@ package qa
 
 import (
 	"fmt"
-	"math"
 	"testing"
 
 	"github.com/dabankio/bbrpc"
@@ -57,7 +56,7 @@ func TestMakekeypair(t *testing.T) {
 
 		tx, err := gobbc.DecodeRawTransaction(*txdata, false)
 		tw.Nil(err)
-		tx.Version = math.MaxUint16
+		// tx.Version = math.MaxUint16
 		// _ = math.MaxUint16
 		tw.Nil(tx.SignWithPrivateKey("", pair.Privk))
 

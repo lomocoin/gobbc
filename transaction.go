@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"strings"
 	"unsafe"
@@ -27,6 +28,48 @@ func DecodeRawTransaction(txData string, decodeSignData bool) (*Transaction, err
 		tx.Sign = hex.EncodeToString(tx.SignBytes)
 	}
 	return &tx, nil
+}
+
+func writeSize(size uint64, buf *bytes.Buffer) error {
+	switch sz := size; {
+	case sz < 0xFD:
+		return binary.Write(buf, binary.LittleEndian, uint8(size))
+	case sz <= 0xffff:
+		buf.WriteByte(0xfd)
+		return binary.Write(buf, binary.LittleEndian, uint16(size))
+	case sz <= 0xFFFFFFFF:
+		buf.WriteByte(0xfe)
+		return binary.Write(buf, binary.LittleEndian, uint32(size))
+	case sz > 0xFFFFFFFF:
+		buf.WriteByte(0xff)
+		return binary.Write(buf, binary.LittleEndian, size)
+	default:
+		return fmt.Errorf("should not here, write size, unexpected size: %d", size)
+	}
+}
+func readSize(reader io.ByteReader, buffer io.Reader) (uint64, error) {
+	sizeFlag, err := reader.ReadByte()
+	if err != nil {
+		return 0, fmt.Errorf("unable to read size byte, %v", err)
+	}
+	switch sz := sizeFlag; {
+	case sz < 0xfd:
+		return uint64(sz), nil
+	case sz == 0xfd:
+		var size uint16
+		e := binary.Read(buffer, binary.LittleEndian, &size)
+		return uint64(size), e
+	case sz == 0xfe:
+		var size uint32
+		e := binary.Read(buffer, binary.LittleEndian, &size)
+		return uint64(size), e
+	case sz == 0xff:
+		var size uint64
+		e := binary.Read(buffer, binary.LittleEndian, &size)
+		return size, e
+	default:
+		return 0, fmt.Errorf("unexpected size flag %d", sz)
+	}
 }
 
 func txDeserialize(txData string, decodeSignData bool) (*RawTransaction, error) {
@@ -52,7 +95,12 @@ func txDeserialize(txData string, decodeSignData bool) (*RawTransaction, error) 
 	read(&tx.Timestamp)
 	read(&tx.LockUntil)
 	copy(tx.HashAnchorBytes[:], buffer.Next(int(unsafe.Sizeof(tx.HashAnchorBytes))))
-	read(&tx.SizeIn)
+
+	// read(&tx.SizeIn)
+	tx.SizeIn, err = readSize(buffer, buffer)
+	if err != nil {
+		return nil, fmt.Errorf("read input size err, %v", err)
+	}
 
 	size = 33 * int(tx.SizeIn)
 	tx.Input = make([]byte, size)
@@ -62,32 +110,21 @@ func txDeserialize(txData string, decodeSignData bool) (*RawTransaction, error) 
 	copy(tx.AddressBytes[:], buffer.Next(int(unsafe.Sizeof(tx.AddressBytes))))
 	read(&tx.Amount)
 	read(&tx.TxFee)
-	read(&tx.SizeOut)
+	// read(&tx.SizeOut)
+	tx.SizeOut, err = readSize(buffer, buffer)
+	if err != nil {
+		return nil, fmt.Errorf("read output size err, %v", err)
+	}
 
 	size = int(tx.SizeOut)
 	tx.VchData = make([]byte, size)
 	copy(tx.VchData, buffer.Next(size)) //考虑逻辑是什么？。。。是不是直接表示字节数，而不是out的笔数
 
+	// fmt.Println("[dbg] parsed tx", JSONIndent(tx))
 	if decodeSignData {
-		sizeFlag, err := buffer.ReadByte()
+		tx.SizeSign, err = readSize(buffer, buffer)
 		if err != nil {
-			return nil, fmt.Errorf("unable to read sign size flag: %v", err)
-		}
-		switch sz := sizeFlag; {
-		case sz < 0xfd:
-			tx.SizeSign = uint64(sz)
-		case sz == 0xfd:
-			var size uint16
-			read(&size)
-			tx.SizeSign = uint64(size)
-		case sz == 0xfe:
-			var size uint32
-			read(&size)
-			tx.SizeSign = uint64(size)
-		case sz == 0xff:
-			read(&tx.SizeSign)
-		default:
-			return nil, fmt.Errorf("unexpected sig size %d", sz)
+			return nil, fmt.Errorf("read signature size err, %v", err)
 		}
 
 		size = int(tx.SizeSign)
@@ -121,35 +158,27 @@ func (rtx *RawTransaction) EncodeBytes(encodeSignData bool) ([]byte, error) {
 			errs = append(errs, e)
 		}
 	}
+	fnWriteSize := func(size uint64) {
+		if e := writeSize(size, buf); e != nil {
+			errs = append(errs, e)
+		}
+	}
 	write(rtx.Version)
 	write(rtx.Typ)
 	write(rtx.Timestamp)
 	write(rtx.LockUntil)
 	buf.Write(rtx.HashAnchorBytes[:])
-	write(rtx.SizeIn)
+	fnWriteSize(rtx.SizeIn)
+
 	buf.Write(rtx.Input) //:33*int(rtx.SizeIn)
 	write(rtx.Prefix)
 	buf.Write(rtx.AddressBytes[:])
 	write(rtx.Amount)
 	write(rtx.TxFee)
-	write(rtx.SizeOut)
+	fnWriteSize(rtx.SizeOut)
 	buf.Write(rtx.VchData)
 	if encodeSignData {
-		switch sz := rtx.SizeSign; {
-		case sz < 0xFD:
-			write(uint8(rtx.SizeSign))
-		case sz <= 0xffff:
-			buf.WriteByte(0xfd)
-			write(uint16(rtx.SizeSign))
-		case sz <= 0xFFFFFFFF:
-			buf.WriteByte(0xfe)
-			write(uint32(rtx.SizeSign))
-		case sz > 0xFFFFFFFF:
-			buf.WriteByte(0xff)
-			write(rtx.SizeSign)
-		default:
-			errs = append(errs, fmt.Errorf("should not here, encode transaction, unexpected sign size: %d", rtx.SizeSign))
-		}
+		fnWriteSize(rtx.SizeSign)
 		buf.Write(rtx.SignBytes)
 	} else {
 		buf.WriteByte(0) //表示不包含签名数据
@@ -183,7 +212,7 @@ func (rtx *RawTransaction) Txid() ([32]byte, error) {
 // 当to地址为vote类型模版地址时需要传入to地址模版数据
 // 特别的，只有1种情况需要传入2个模版地址：delegate类型模版的owner为多签地址，从该地址转出时需要传入：delegate模版数据,多签模版数据
 // （基于上面一种情况，如果转出地址为vote template可能还需要提供vote template data, 一共3个😂，这个未经测试、验证）
-// 
+//
 // 下面列出常见的场景：
 // 一般公钥地址转出(到非vote template)->(不需要模版数据)
 // 一般公钥地址投票时->投票模版数据
@@ -246,6 +275,8 @@ func (rtx *RawTransaction) SignWithPrivateKey(templateDataList, privkHex string)
 			return fmt.Errorf("多签数据检查异常，现有签名长度(%d)小于传入的模版长度(%d)", _ls, _lt)
 		}
 		if !bytes.Equal(rawTemplateBytes, rtx.SignBytes[:_lt]) {
+			// fmt.Println("[dbg]", hex.EncodeToString(rawTemplateBytes))
+			// fmt.Println("[dbg]", hex.EncodeToString(rtx.SignBytes[:_lt]))
 			return fmt.Errorf("多签数据检查异常，现有签名模版数据与传入的不一致")
 		}
 		sigPart = make([]byte, _ls-_lt)

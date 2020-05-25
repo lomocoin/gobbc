@@ -43,7 +43,7 @@ func signAndSendtransaction(cmd bbrpc.CmdSendfrom, privateKeys []string, client 
 				templateData = templateData + ","
 			}
 			templateData = templateData + addrInfo.Addressdata.Templatedata.Hex
-			
+
 		}
 		for _, privateKey := range privateKeys {
 			err = rawTX.SignWithPrivateKey(templateData, privateKey)
