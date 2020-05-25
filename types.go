@@ -12,7 +12,7 @@ type RawTransaction struct {
 	Typ             uint16 //type > typ
 	Timestamp       uint32
 	LockUntil       uint32
-	HashAnchorBytes [32]byte `json:"-"` // binary data (caller do not care about this field, you just care hex field)
+	HashAnchorBytes [32]byte `json:"-"` // fork id
 	SizeIn          uint8    //input 数量
 	Input           []byte   `json:"-"`
 	Prefix          uint8    //addr prefix
@@ -31,6 +31,12 @@ type Transaction struct {
 	HashAnchor string // hex string([65]byte)
 	Address    string // hex string ([64 + 1]byte)
 	Sign       string // hex string
+	Vin        []Vin
+	Data       string
+}
+type Vin struct {
+	Txid string
+	Vout int
 }
 
 // TXData 包含了原始交易数据和需要的模版数据，模版数据使用,(英文逗号)分隔

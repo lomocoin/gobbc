@@ -1,5 +1,7 @@
 package gobbc
 
+const Precision = 1000000
+
 // TemplateType 模版类型
 type TemplateType int16
 

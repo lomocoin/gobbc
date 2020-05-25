@@ -79,3 +79,11 @@ func TestTemplateAddr(t *testing.T) {
 	}
 
 }
+
+func TestConvertAddress2pubk(t *testing.T) {
+	w := TW{T: t}
+	pubk, err := ConvertAddress2pubk("1fhtnq5n1b9bte99x5fw0m7cw9jm4n6kgv9nbeynscsgzryvhjf7ny9tm")
+	w.Nil(err)
+	expected := "cf93717bfc6166b97ab76ada709a4aa84c9c1d0af82b3d25a7575aa1965b757c"
+	w.Equal(expected, pubk)
+}

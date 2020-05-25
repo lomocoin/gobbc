@@ -131,3 +131,30 @@ func TestTxid(t *testing.T) {
 	//5de51df120c2762e6590be7c3bf259d61c50995202ff6e3c646144705538ea30
 	//667d30119521ad92f6f6626f8e397219ad393270ed2bfbc542998ba7bb415dad
 }
+
+func TestFields(t *testing.T) {
+	serial := `010000009a38c55e00000000701af4705c5e6fcb04efc3ca3c851c1e4d8948e10923025f54bea9b000000000027db75d9eaf2a6a45bf03d6bc72c5ffbb9cd0d303cc8226a59c314736cd87bb5e01c78749c449450242d73defb688014cf13386010f2b6a518b51affd4e2988bb5e00012624a217cf0948cc2d32238aa0b54e127643c2f161c2094561469c462d772580a08601000000000030750000000000001c03d2d88466e74253812fe7bb70b1b3d15ec5389a0068656c6c6f53334058a98a65184a0452e80de55ec03ded7415c5155fd693a3515ba7fddc8d011973d15ab610c5f8e3ec465ac932af6fb41d89064b17877c2236294ab0a7d74c6605`
+	tx, err := DecodeRawTransaction(serial, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println("tx json:", JSONIndent(tx))
+}
+
+func TestTXBuilder(t *testing.T) {
+	w := TW{T: t}
+	createTX := "01000000dbb7cc5e00000000701af4705c5e6fcb04efc3ca3c851c1e4d8948e10923025f54bea9b0000000000182e7a2ae807032941897bd7e01a3221b91cdb63f0a2d64dcad937c9f98e3c55e01017c755b96a15a57a7253d2bf80a1d9c4ca84a9a70da6ab77ab96661fc7b7193cfb0c412000000000010270000000000000000"
+	tx, err := NewTXBuilder().
+		SetAnchor("00000000b0a9be545f022309e148894d1e1c853ccac3ef04cb6f5e5c70f41a70").
+		SetTimestamp(1590474715).
+		SetVersion(1).
+		SetLockUntil(0).
+		AddInput("5ec5e3989f7c93addc642d0a3fb6cd911b22a3017ebd971894327080aea2e782", 1).
+		SetAddress("1fhtnq5n1b9bte99x5fw0m7cw9jm4n6kgv9nbeynscsgzryvhjf7ny9tm").
+		SetAmount(1.23).
+		SetFee(0.01).
+		Build()
+	w.Nil(err)
+	encodeTX, err := tx.Encode(false)
+	w.Nil(err).Equal(createTX, encodeTX)
+}

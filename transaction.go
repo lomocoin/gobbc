@@ -5,12 +5,14 @@ import (
 	"crypto/ed25519"
 	"encoding/binary"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"log"
 	"strings"
 	"unsafe"
 
+	"github.com/google/uuid"
+	"github.com/pkg/errors"
+	"github.com/shopspring/decimal"
 	"golang.org/x/crypto/blake2b"
 )
 
@@ -20,13 +22,28 @@ func DecodeRawTransaction(txData string, decodeSignData bool) (*Transaction, err
 	if err != nil {
 		return nil, err
 	}
-	tx := Transaction{RawTransaction: *rtx}
+	tx := rtx.ToTransaction(decodeSignData)
+	return &tx, nil
+}
+
+// ToTransaction .
+func (rtx RawTransaction) ToTransaction(includeSignData bool) Transaction {
+	tx := Transaction{RawTransaction: rtx}
 	tx.HashAnchor = hex.EncodeToString(CopyReverse(tx.HashAnchorBytes[:]))
 	tx.Address, _ = GetPubKeyAddress(hex.EncodeToString(CopyReverse(tx.AddressBytes[:])))
-	if decodeSignData {
+	if includeSignData {
 		tx.Sign = hex.EncodeToString(tx.SignBytes)
 	}
-	return &tx, nil
+	tx.Data = hex.EncodeToString(tx.VchData)
+	cursor := 0
+	for i := 0; i < int(tx.SizeIn); i++ {
+		tx.Vin = append(tx.Vin, Vin{
+			Txid: hex.EncodeToString(CopyReverse(tx.Input[cursor : cursor+32])),
+			Vout: int(tx.Input[cursor+32:][0]),
+		})
+		cursor = cursor + 33
+	}
+	return tx
 }
 
 func txDeserialize(txData string, decodeSignData bool) (*RawTransaction, error) {
@@ -183,7 +200,7 @@ func (rtx *RawTransaction) Txid() ([32]byte, error) {
 // 当to地址为vote类型模版地址时需要传入to地址模版数据
 // 特别的，只有1种情况需要传入2个模版地址：delegate类型模版的owner为多签地址，从该地址转出时需要传入：delegate模版数据,多签模版数据
 // （基于上面一种情况，如果转出地址为vote template可能还需要提供vote template data, 一共3个😂，这个未经测试、验证）
-// 
+//
 // 下面列出常见的场景：
 // 一般公钥地址转出(到非vote template)->(不需要模版数据)
 // 一般公钥地址投票时->投票模版数据
@@ -264,4 +281,182 @@ func (rtx *RawTransaction) SignWithPrivateKey(templateDataList, privkHex string)
 	rtx.SignBytes = append(rawTemplateBytes, sig...)
 	rtx.SizeSign = uint64(len(rtx.SignBytes))
 	return nil
+}
+
+// TXBuilder .
+type TXBuilder struct {
+	rtx *RawTransaction
+	err error
+}
+
+func NewTXBuilder() *TXBuilder {
+	return &TXBuilder{
+		rtx: &RawTransaction{
+			Version: 1,
+			Typ:     0, //token
+
+		},
+	}
+}
+
+// return b.err != nil
+func (b *TXBuilder) setErr(e error) bool {
+	if b.err == nil {
+		b.err = e
+	}
+	return b.err != nil
+}
+
+// SetAnchor 锚定分支id
+func (b *TXBuilder) SetAnchor(anchor string) *TXBuilder {
+	bytes, err := hex.DecodeString(anchor)
+	if err != nil {
+		b.setErr(fmt.Errorf("hex decode anchor failed, %v", err))
+		return b
+	}
+	if len(bytes) != 32 {
+		b.setErr(fmt.Errorf("%s 似乎不是合法的 anchor,长度不是32", anchor))
+		return b
+	}
+	copy(b.rtx.HashAnchorBytes[:], reverseBytes(bytes))
+	return b
+}
+
+// SetTimestamp 当前时间戳
+func (b *TXBuilder) SetTimestamp(timestamp int) *TXBuilder {
+	b.rtx.Timestamp = uint32(timestamp)
+	return b
+}
+
+// SetLockUntil lock until
+func (b *TXBuilder) SetLockUntil(lockUntil int) *TXBuilder {
+	b.rtx.LockUntil = uint32(lockUntil)
+	return b
+}
+
+// SetVersion 当前版本 1
+func (b *TXBuilder) SetVersion(v int) *TXBuilder {
+	b.rtx.Version = uint16(v)
+	return b
+}
+
+// AddInput 参考listunspent,确保输入金额满足amount
+func (b *TXBuilder) AddInput(txid string, vout uint8) *TXBuilder {
+	bytes, err := hex.DecodeString(txid)
+	if err != nil {
+		b.setErr(fmt.Errorf("%s 似乎不是合法的txid, %v", txid, err))
+		return b
+	}
+	b.rtx.SizeIn++
+	input := append(reverseBytes(bytes), vout)
+	b.rtx.Input = append(b.rtx.Input, input...)
+	return b
+}
+
+// SetAddress 转账地址,目前只支持公钥地址
+func (b *TXBuilder) SetAddress(add string) *TXBuilder {
+	pubk, err := ConvertAddress2pubk(add)
+	if b.setErr(err) {
+		return b
+	}
+	bytes, err := hex.DecodeString(pubk)
+	if b.setErr(err) {
+		return b
+	}
+	b.rtx.Prefix = 1 //1: pubk address
+	copy(b.rtx.AddressBytes[:], reverseBytes(bytes))
+	return b
+}
+
+// SetAmount 转账金额
+func (b *TXBuilder) SetAmount(amount float64) *TXBuilder {
+	if amount < 0 {
+		b.setErr(fmt.Errorf("amount should be greater than 0"))
+		return b
+	}
+	b.rtx.Amount = decimal.NewFromFloat(amount).Mul(decimal.NewFromInt(Precision)).IntPart()
+	return b
+}
+
+// SetFee 手续费，目前0.01，如果带data则0.03, 额外需咨询BBC
+func (b *TXBuilder) SetFee(fee float64) *TXBuilder {
+	if fee < 0 {
+		b.setErr(fmt.Errorf("amount should be greater than 0"))
+		return b
+	}
+	b.rtx.TxFee = decimal.NewFromFloat(fee).Mul(decimal.NewFromInt(Precision)).IntPart()
+	return b
+}
+
+// SetData 原始data设置,参考 UtilDataEncoding
+func (b *TXBuilder) SetData(data []byte) *TXBuilder {
+	b.rtx.SizeOut = uint8(len(data))
+	b.rtx.VchData = data
+	return b
+}
+
+// SetDataWithUUID 指定uuid,timestamp,data
+func (b *TXBuilder) SetDataWithUUID(_uuid string, timestamp int64, data string) *TXBuilder {
+	_id, err := uuid.Parse(_uuid)
+	if err != nil {
+		b.setErr(errors.Wrap(err, "parse uuid failed"))
+		return b
+	}
+
+	timeBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(timeBytes, uint32(timestamp))
+
+	_data, err := hex.DecodeString(strings.Join([]string{
+		strings.Replace(_id.String(), "-", "", -1),
+		hex.EncodeToString(timeBytes),
+		"00",
+		hex.EncodeToString([]byte(data)),
+	}, ""))
+	if err != nil {
+		b.setErr(errors.Wrap(err, "hex decode data err"))
+		return b
+	}
+	b.rtx.SizeOut = uint8(len(_data))
+	b.rtx.VchData = _data
+	return b
+}
+
+// SetStringData 自动编码数据,自动生成uuid和时间戳
+func (b *TXBuilder) SetStringData(data string) *TXBuilder {
+	data = UtilDataEncoding(data)
+	bytes, err := hex.DecodeString(data)
+	if err != nil {
+		b.setErr(errors.Wrap(err, "encoding data err"))
+	}
+	b.rtx.VchData = bytes
+	b.rtx.SizeOut = uint8(len(bytes))
+	return b
+}
+
+// Build .
+func (b *TXBuilder) Build() (*RawTransaction, error) {
+	if b.rtx.SizeIn == 0 {
+		return nil, errors.New("no input provided")
+	}
+	if b.rtx.Amount == 0 {
+		return nil, errors.New("amount not set")
+	}
+	if b.rtx.TxFee == 0 {
+		return nil, errors.New("tx fee not set")
+	}
+
+	noZeroFound := true
+	for i := 0; i < 32; i++ {
+		if b.rtx.HashAnchorBytes[i] != 0 {
+			noZeroFound = false
+			break
+		}
+	}
+	if noZeroFound {
+		return nil, errors.New("fork id not provided")
+	}
+	if b.err != nil {
+		return nil, b.err
+	}
+	return b.rtx, nil
 }

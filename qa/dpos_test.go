@@ -270,16 +270,18 @@ func TestPosSDK(t *testing.T) {
 }
 
 func TestGenPrefixAddr(t *testing.T) {
-	t.Skip("使用时打开")
+	// t.Skip("使用时打开")
+	const prefix = "1m1n"
+	const n = 1 //要几个
 	count := 0
-	for {
+	for x := 0; count < n; x++ {
 		p, _ := gobbc.MakeKeyPair()
-		if strings.HasPrefix(p.Addr, "1mts"+strconv.Itoa(count)) {
-			fmt.Printf("%#v\n", p)
+		if strings.HasPrefix(p.Addr, prefix+strconv.Itoa(count)) {
+			fmt.Printf("\n%#v\n", p)
 			count++
 		}
-		if count > 2 {
-			break
+		if x%20000 == 0 {
+			fmt.Print(".")
 		}
 	}
 }

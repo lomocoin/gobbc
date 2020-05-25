@@ -2,7 +2,9 @@ package gobbc
 
 import (
 	"crypto/ed25519"
+	"encoding/base32"
 	"encoding/hex"
+	"errors"
 	"fmt"
 )
 
@@ -127,4 +129,26 @@ func GetPubKeyAddress(pubk string) (string, error) {
 	var ui uint256
 	uint256SetHex(&ui, pubk)
 	return "1" + Base32Encode(ui[:]), nil
+}
+
+// ConvertAddress2pubk .
+func ConvertAddress2pubk(address string) (string, error) {
+	if address[0] != '1' {
+		return "", errors.New("pubk address should start with 1")
+	}
+	enc := base32.NewEncoding(alphabet)
+	b, err := enc.DecodeString(address[1:])
+	if err != nil {
+		return "", fmt.Errorf("base32 decode address err, %v", err)
+	}
+	pubk := hex.EncodeToString(reverseBytes(b))
+
+	validateAddr, err := GetPubKeyAddress(pubk)
+	if err != nil {
+		return "", fmt.Errorf("校验不通过, %v", err)
+	}
+	if validateAddr != address {
+		return "", fmt.Errorf("校验不通过")
+	}
+	return pubk[6:], nil //前 3 byte是校验位
 }
