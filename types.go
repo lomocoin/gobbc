@@ -13,13 +13,13 @@ type RawTransaction struct {
 	Timestamp       uint32
 	LockUntil       uint32
 	HashAnchorBytes [32]byte `json:"-"` // fork id
-	SizeIn          uint8    //input 数量
+	SizeIn          uint64   //input 数量
 	Input           []byte   `json:"-"`
 	Prefix          uint8    //addr prefix
 	AddressBytes    [32]byte `json:"-"` // binary data (caller do not care about this field, you just care hex field)
 	Amount          int64
 	TxFee           int64
-	SizeOut         uint8
+	SizeOut         uint64
 	VchData         []byte `json:"-"` // binary (caller do not care about this field, you just care hex field)
 	SizeSign        uint64 // binary sign data size, ref: https://github.com/bigbangcore/BigBang/wiki/IO-Stream#stdvector-stdmap-stdstring
 	SignBytes       []byte `json:"-"` // [template data]sig

@@ -50,7 +50,7 @@ func TestDecodeRawTransaction(t *testing.T) {
 		IsZero(tx.LockUntil, "bad lock until").
 		Equal("00000000b0a9be545f022309e148894d1e1c853ccac3ef04cb6f5e5c70f41a70", tx.HashAnchor, "bad anchor").
 		Equal("1yc5hzp4mq8zaswdj62eekz5p0t4jmw309btqj6kk5qt27s3z00embbrg", tx.Address, "bad address").
-		Equal(uint8(2), tx.SizeIn).
+		Equal(uint64(2), tx.SizeIn).
 		Equal(int64(499_999_900), tx.Amount, "bad amount").
 		Equal(int64(100), tx.TxFee, "bad tx fee")
 
@@ -73,8 +73,8 @@ func TestTransactionDecodeEncode(t *testing.T) {
 			IsZero(txWithoutSign.LockUntil, "bad lock until").
 			Equal("00000000dcde418dca150e49f53ab857d5ccd095a800bfb29ea87385267bc069", txWithoutSign.HashAnchor, "bad anchor").
 			Equal("134ayq46sz78dj8hkwcvs7m2c19fp7176bze2x87z1665vcmdj42y7a7s", txWithoutSign.Address, "bad address").
-			Equal(uint8(1), txWithoutSign.SizeIn).
-			Equal(uint8(0), txWithoutSign.SizeOut).
+			Equal(uint64(1), txWithoutSign.SizeIn).
+			Equal(uint64(0), txWithoutSign.SizeOut).
 			Equal(int64(1000_000), txWithoutSign.Amount, "bad amount").
 			Equal(int64(100), txWithoutSign.TxFee, "bad tx fee")
 
