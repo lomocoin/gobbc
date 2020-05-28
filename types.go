@@ -1,8 +1,9 @@
 package gobbc
 
 import (
-	"encoding/hex"
-	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
 )
 
 // RawTransaction 实际的序列话数据结构
@@ -45,20 +46,21 @@ type TXData struct {
 	TxHex  string `json:"tx_hex,omitempty"`  //encoded tx data
 }
 
-// ToJSONHex json marshal + hex encode
-func (data *TXData) ToJSONHex() (string, error) {
-	b, err := json.Marshal(data)
-	if err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(b), nil
+// EncodeString json marshal + hex encode
+func (data *TXData) EncodeString() (string, error) {
+	return fmt.Sprintf("enc;%s;%s", data.TplHex, data.TxHex), nil
 }
 
-// FromJSONHex parse jsonHex set value to data
-func (data *TXData) FromJSONHex(jsonHex string) error {
-	b, err := hex.DecodeString(jsonHex)
-	if err != nil {
-		return err
+// DecodeString parse jsonHex set value to data
+func (data *TXData) DecodeString(jsonHex string) error {
+	if !strings.HasPrefix(jsonHex, "enc;") {
+		return errors.New("Tx data not has prefix: enc")
 	}
-	return json.Unmarshal(b, data)
+	arr := strings.Split(jsonHex, ";")
+	if len(arr) != 3 {
+		return errors.New("tx data invalid format")
+	}
+	data.TplHex = arr[1]
+	data.TxHex = arr[2]
+	return nil
 }
