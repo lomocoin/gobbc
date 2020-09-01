@@ -1,3 +1,5 @@
+Archived, moved to https://github.com/dabankio/gobbc .
+
 # BBC 签名库 in go
 
 修改自: https://github.com/bigbangcore/OffLineSignLib
